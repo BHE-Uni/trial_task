@@ -5,19 +5,27 @@ import axios from 'axios'
 
 const API_URL = 'https://trail_task.test/api/tasks';
 
+const isLoading = ref(true);
+
 // Task data
 const tasks = ref([]);
 
 const fetchTasks = async () => {
+  isLoading.value = true;
   try {
     const response = await axios.get(API_URL);
     tasks.value = response.data.map(task => ({
       ...task,
-      completed: !!task.completed
+      completed: !!task.completed,
+      isEditing: false,
+      editTitle: '',
+      editDescription: ''
     }));
+    isLoading.value = false;
   } catch (error) {
     console.error("API Error:", error.response ? error.response.data : error);
     openNotification('Failed to fetch tasks');
+    isLoading.value = false;
   }
 };
 
@@ -55,8 +63,8 @@ const addTask = async () => {
 
 const startEditing = (task) => {
   task.isEditing = true;
-  task.editTitle = task.title;
-  task.editDescription = task.description;
+  task.editTitle = task.title; // Now reactive
+  task.editDescription = task.description; // Now reactive
 };
 
 const saveEdit = async (task) => {
@@ -140,35 +148,47 @@ onMounted(async () => {
               <a-button type="primary" htmlType="submit" :disabled="!canAddTask">Add Task</a-button>
           </a-form-item>
         </a-form>
-        <a-list
-          item-layout="horizontal"
-          :dataSource="tasks"
-          class="task-list"
-        >
-          <a-list-item v-for="task in tasks" :key="task.id">
-            <a-list-item-meta>
-              <template v-if="!task.isEditing">
-                <div :title="task.title" :description="task.description">
-                  {{ task.title }} - {{ task.description }}
-                </div>
-                <a-space>
-                  <a-button type="default" @click="toggleComplete(task)" :disabled="task.completed">Mark Complete</a-button>
-                  <a-button type="primary" @click="startEditing(task)">Edit</a-button>
-                  <a-button type="danger" @click="deleteTask(task.id)">Delete</a-button>
-                </a-space>
-              </template>
-              <template v-else>
-                <a-input v-model="task.editTitle" placeholder="Edit Task Title" />
-                <a-textarea v-model="task.editDescription" placeholder="Edit Task Description" />
-                <a-space>
-                  <a-button type="primary" @click="saveEdit(task)">Save</a-button>
-                  <a-button @click="task.isEditing = false">Cancel</a-button>
-                </a-space>
-              </template>
-            </a-list-item-meta>
-          </a-list-item>
-
-        </a-list>
+        <div v-if="isLoading">
+  <a-skeleton active />
+</div>
+<div v-else>
+        <transition-group name="list" tag="div" class="task-list">
+          <a-list
+            item-layout="horizontal"
+            :dataSource="tasks"
+          >
+            <a-list-item v-for="(task, index) in tasks" :key="task.id">
+                <template v-if="!task.isEditing">
+                  <div :title="task.title" :description="task.description">
+                    <strong>{{ index + 1 }}.</strong>
+                    {{ task.title }} 
+                    <br>
+                    - {{ task.description }}
+                  </div>
+                  <a-space>
+                    <a-button type="default" @click="toggleComplete(task)" :disabled="task.completed">Mark Complete</a-button>
+                    <a-button type="primary" @click="startEditing(task)">Edit</a-button>
+                    <a-button type="danger" @click="deleteTask(task.id)">Delete</a-button>
+                  </a-space>
+                </template>
+                <template v-else>
+                    <a-form @submit.prevent="saveEdit(task)" class="task-form">
+                      <a-form-item>
+                        <a-input v-model:value="task.editTitle" placeholder="Task Title" />
+                      </a-form-item>
+                      <a-form-item>
+                        <a-input type="textarea" v-model:value="task.editDescription" placeholder="Task Description" />
+                      </a-form-item>
+                      <a-form-item>
+                        <a-button type="primary" @click="saveEdit(task)">Save</a-button>
+                        <a-button @click="() => task.isEditing = false">Cancel</a-button>
+                      </a-form-item>
+                    </a-form>
+                </template>
+            </a-list-item>
+          </a-list>
+        </transition-group>
+        </div>
       </a-col>
     </a-row>
   </a-layout>
@@ -201,11 +221,18 @@ onMounted(async () => {
 }
 
 .task-list {
-  max-height: 400px;
   overflow-y: auto;
 }
 
 .a-button:hover {
   opacity: 0.8;
+}
+
+.list-enter-active, .list-leave-active {
+  transition: all 0.8s ease;
+}
+.list-enter, .list-leave-to{
+  opacity: 0;
+  transform: translateY(10px);
 }
 </style>
