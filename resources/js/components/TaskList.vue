@@ -10,6 +10,8 @@ const isLoading = ref(true);
 // Task data
 const tasks = ref([]);
 
+const searchQuery = ref('');
+
 const fetchTasks = async () => {
   isLoading.value = true;
   try {
@@ -28,6 +30,16 @@ const fetchTasks = async () => {
     isLoading.value = false;
   }
 };
+
+const filteredTasks = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return tasks.value;
+  }
+  return tasks.value.filter(task =>
+    task.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    task.description.toLowerCase().includes(searchQuery.value.toLowerCase())
+  );
+});
 
 // New task model
 const newTask = ref({ title: '', description: '' });
@@ -118,6 +130,15 @@ const deleteTask = async (taskId) => {
   }
 };
 
+// Total number of tasks
+const totalTasks = computed(() => tasks.value.length);
+
+// Total number of completed tasks
+const completedTasks = computed(() => tasks.value.filter(task => task.completed).length);
+
+// Total number of pending tasks
+const pendingTasks = computed(() => tasks.value.filter(task => !task.completed).length);
+
 // Toaster
 const openNotification = (message) => {
   notification.open({
@@ -152,12 +173,14 @@ onMounted(async () => {
   <a-skeleton active />
 </div>
 <div v-else>
-        <transition-group name="list" tag="div" class="task-list">
+  <p>Total Tasks: <b>{{ totalTasks }}</b>, Completed: <b>{{ completedTasks }}</b>, Pending: <b>{{ pendingTasks }}</b></p>
+  <a-input v-model:value="searchQuery" placeholder="Search Tasks" />
+  <transition-group name="list" tag="div" class="task-list">
           <a-list
             item-layout="horizontal"
-            :dataSource="tasks"
+            :dataSource="filteredTasks"
           >
-            <a-list-item v-for="(task, index) in tasks" :key="task.id">
+            <a-list-item v-for="(task, index) in filteredTasks" :key="task.id">
                 <template v-if="!task.isEditing">
                   <div :title="task.title" :description="task.description">
                     <strong>{{ index + 1 }}.</strong>
