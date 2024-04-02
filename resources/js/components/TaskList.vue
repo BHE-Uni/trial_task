@@ -1,12 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue';
-import { notification } from 'ant-design-vue';
+import { ref, computed, onMounted } from 'vue'
+import { notification } from 'ant-design-vue'
+import axios from 'axios'
+
+const API_URL = 'https://trail_task.test/api/tasks';
 
 // Task data
-const tasks = ref([
-  { id: 1, title: 'Learn Vue.js', description: 'Read the Vue.js documentation', completed: false },
-  { id: 2, title: 'Explore Ant Design', description: 'Check out Ant Design components', completed: false },
-]);
+const tasks = ref([]);
+
+const fetchTasks = async () => {
+  try {
+    const response = await axios.get(API_URL);
+    tasks.value = response.data.map(task => ({
+      ...task,
+      completed: !!task.completed
+    }));
+  } catch (error) {
+    console.error("API Error:", error.response ? error.response.data : error);
+    openNotification('Failed to fetch tasks');
+  }
+};
 
 // New task model
 const newTask = ref({ title: '', description: '' });
@@ -15,33 +28,87 @@ const newTask = ref({ title: '', description: '' });
 const canAddTask = computed(() => newTask.value.title.trim() && newTask.value.description.trim());
 
 // Add a new task
-function addTask() {
+const addTask = async () => {
   if (!canAddTask.value) {
-    console.log("Cannot add task, conditions not met.");
+    openNotification('Please complete the form before adding a task');
     return;
   }
-  const nextId = tasks.value.length ? Math.max(...tasks.value.map(t => t.id)) + 1 : 1;
-  const newTaskToAdd = { ...newTask.value, id: nextId, completed: false };
-  tasks.value.push(newTaskToAdd);
-  openNotification('New Task Added');
 
-  newTask.value = { title: '', description: '' };
-}
+  try {
+    const response = await axios.post(API_URL, {
+      title: newTask.value.title,
+      description: newTask.value.description,
+      completed: false,
+    });
+
+    console.log("API Response:", response.data);
+    tasks.value.push(response.data);
+
+    newTask.value.title = '';
+    newTask.value.description = '';
+    openNotification('New Task Added');
+  } catch (error) {
+    console.error("API Error:", error.response ? error.response.data : error);
+    openNotification('Failed to add task');
+  }
+};
+
+const startEditing = (task) => {
+  task.isEditing = true;
+  task.editTitle = task.title;
+  task.editDescription = task.description;
+};
+
+const saveEdit = async (task) => {
+  try {
+    const updatedTask = await axios.patch(`${API_URL}/${task.id}`, {
+      title: task.editTitle,
+      description: task.editDescription,
+      completed: task.completed
+    });
+
+    task.title = updatedTask.data.title;
+    task.description = updatedTask.data.description;
+    task.isEditing = false; // Exit editing mode
+    openNotification(`Task "${task.title}" updated successfully.`);
+  } catch (error) {
+    console.error("API Error:", error.response ? error.response.data : error);
+    openNotification('Failed to update task.');
+  }
+};
+
 
 // Mark the completion status of a task
-function toggleComplete(taskId) {
-  const task = tasks.value.find(t => t.id === taskId);
-  if (task) {
-    task.completed = !task.completed;
-    openNotification('Task Marked Complete');
+const toggleComplete = async (task) => {
+  const updatedTask = { ...task, completed: !task.completed };
+  try {
+    await axios.patch(`${API_URL}/${task.id}`, {
+      title: updatedTask.title,
+      description: updatedTask.description,
+      completed: updatedTask.completed
+    });
+    const index = tasks.value.findIndex(t => t.id === task.id);
+    if (index !== -1) {
+      tasks.value[index] = updatedTask;
+    }
+    openNotification(`Task "${task.title}" marked as ${updatedTask.completed ? 'completed' : 'incomplete'}.`);
+  } catch (error) {
+    console.error("API Error:", error.response ? error.response.data : error);
+    openNotification('Failed to update task status');
   }
-}
+};
 
 // Delete a task
-function deleteTask(taskId) {
-  tasks.value = tasks.value.filter(t => t.id !== taskId);
-  openNotification('Task Deleted');
-}
+const deleteTask = async (taskId) => {
+  try {
+    await axios.delete(`${API_URL}/${taskId}`);
+    tasks.value = tasks.value.filter(task => task.id !== taskId);
+    openNotification('Task Deleted Successfully');
+  } catch (error) {
+    console.error("API Error:", error.response ? error.response.data : error);
+    openNotification('Failed to delete task');
+  }
+};
 
 // Toaster
 const openNotification = (message) => {
@@ -50,6 +117,11 @@ const openNotification = (message) => {
     duration: 1
   });
 }
+
+onMounted(async () => {
+  await fetchTasks();
+  tasks.value.forEach(task => task.isEditing = false);
+});
 </script>
 
 <template>
@@ -74,12 +146,28 @@ const openNotification = (message) => {
           class="task-list"
         >
           <a-list-item v-for="task in tasks" :key="task.id">
-            <a-list-item-meta :title="task.title" :description="task.description" />
-            <a-space>
-              <a-button type="default" @click="toggleComplete(task.id)" :disabled="task.completed">Mark Complete</a-button>
-              <a-button type="danger" @click="deleteTask(task.id)">Delete</a-button>
-            </a-space>
+            <a-list-item-meta>
+              <template v-if="!task.isEditing">
+                <div :title="task.title" :description="task.description">
+                  {{ task.title }} - {{ task.description }}
+                </div>
+                <a-space>
+                  <a-button type="default" @click="toggleComplete(task)" :disabled="task.completed">Mark Complete</a-button>
+                  <a-button type="primary" @click="startEditing(task)">Edit</a-button>
+                  <a-button type="danger" @click="deleteTask(task.id)">Delete</a-button>
+                </a-space>
+              </template>
+              <template v-else>
+                <a-input v-model="task.editTitle" placeholder="Edit Task Title" />
+                <a-textarea v-model="task.editDescription" placeholder="Edit Task Description" />
+                <a-space>
+                  <a-button type="primary" @click="saveEdit(task)">Save</a-button>
+                  <a-button @click="task.isEditing = false">Cancel</a-button>
+                </a-space>
+              </template>
+            </a-list-item-meta>
           </a-list-item>
+
         </a-list>
       </a-col>
     </a-row>
