@@ -13,7 +13,7 @@ class TaskController extends Controller
 
     public function index()
     {
-        $tasks = Task::all();
+        $tasks = Task::paginate(10);
         return response()->json($tasks);
     }
 
@@ -45,5 +45,18 @@ class TaskController extends Controller
         $task->delete();
 
         return response()->json(null, 204);
+    }
+
+        public function stats()
+    {
+        $totalTasks = Task::count();
+        $completedTasks = Task::where('completed', true)->count();
+        $pendingTasks = Task::where('completed', false)->count();
+
+        return response()->json([
+            'totalTasks' => $totalTasks,
+            'completedTasks' => $completedTasks,
+            'pendingTasks' => $pendingTasks,
+        ]);
     }
 }

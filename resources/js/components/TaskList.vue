@@ -13,22 +13,26 @@
 
     const isLoading = ref(true);
 
+    const currentPage = ref(1);
+
     // Task data
     const tasks = ref([]);
 
     const searchQuery = ref('');
 
-    const fetchTasks = async () => {
+    const fetchTasks = async (page = 1) => {
         isLoading.value = true;
         try {
-            const response = await axios.get(API_URL);
-            tasks.value = response.data.map(task => ({
+            const response = await axios.get(`${API_URL}?page=${page}`);
+            tasks.value = response.data.data.map(task => ({
                 ...task,
                 completed: !!task.completed,
                 isEditing: false,
                 editTitle: '',
                 editDescription: ''
             }));
+            currentPage.value = response.data.current_page;
+            totalPages.value = response.data.last_page;
             isLoading.value = false;
         } catch (error) {
             console.error("API Error:", error.response ? error.response.data : error);
@@ -75,6 +79,7 @@
 
             newTask.value.title = '';
             newTask.value.description = '';
+            fetchTaskStats()
             openNotification('New Task Added');
         } catch (error) {
             console.error("API Error:", error.response ? error.response.data : error);
@@ -123,6 +128,7 @@
             if (index !== -1) {
                 tasks.value[index] = updatedTask;
             }
+            fetchTaskStats()
             openNotification(
                 `Task "${task.title}" marked as ${updatedTask.completed ? 'completed' : 'incomplete'}.`);
         } catch (error) {
@@ -136,6 +142,7 @@
         try {
             await axios.delete(`${API_URL}/${taskId}`);
             tasks.value = tasks.value.filter(task => task.id !== taskId);
+            fetchTaskStats()
             openNotification('Task Deleted Successfully');
         } catch (error) {
             console.error("API Error:", error.response ? error.response.data : error);
@@ -143,14 +150,21 @@
         }
     };
 
-    // Total number of tasks
-    const totalTasks = computed(() => tasks.value.length);
+    const totalTasks = ref(0);
+    const completedTasks = ref(0);
+    const pendingTasks = ref(0);
 
-    // Total number of completed tasks
-    const completedTasks = computed(() => tasks.value.filter(task => task.completed).length);
-
-    // Total number of pending tasks
-    const pendingTasks = computed(() => tasks.value.filter(task => !task.completed).length);
+    const fetchTaskStats = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/stats`);
+            totalTasks.value = response.data.totalTasks;
+            completedTasks.value = response.data.completedTasks;
+            pendingTasks.value = response.data.pendingTasks;
+        } catch (error) {
+            console.error("API Error:", error.response ? error.response.data : error);
+            openNotification('Failed to fetch task statistics');
+        }
+    };
 
     // Toaster
     const openNotification = (message) => {
@@ -162,8 +176,11 @@
 
     onMounted(async () => {
         await fetchTasks();
+        await fetchTaskStats();
         tasks.value.forEach(task => task.isEditing = false);
     });
+
+    const totalPages = ref(0);
 
 </script>
 
@@ -226,6 +243,13 @@
                         </a-list>
                     </div>
                 </div>
+
+                <div class="pagination-controls">
+                    <a-button @click="fetchTasks(currentPage - 1)" :disabled="currentPage <= 1">Previous</a-button>
+                    <span class="py-2">Page {{ currentPage }} of {{ totalPages }}</span>
+                    <a-button @click="fetchTasks(currentPage + 1)" :disabled="currentPage >= totalPages">Next</a-button>
+                </div>
+
             </a-col>
         </a-row>
     </a-layout>
@@ -275,5 +299,7 @@
         opacity: 0;
         transform: translateY(10px);
     }
-
+    .py-2{
+        padding: 0px 20px;
+    }
 </style>
