@@ -6,6 +6,9 @@
     <title>Task Management</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
+<script>
+    window.APP_URL = "{{ env('APP_URL') }}";
+</script>
 <body>
     <div id="app"></div>
 </body>

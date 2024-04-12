@@ -2,14 +2,16 @@
     import {
         ref,
         computed,
-        onMounted
+        onMounted,
+        getCurrentInstance
     } from 'vue'
     import {
         notification
     } from 'ant-design-vue'
     import axios from 'axios'
 
-    const API_URL = 'https://trail_task.test/api/tasks';
+    const { proxy } = getCurrentInstance();
+    const API_URL = `${proxy.$appUrl}/api/tasks`;
 
     const isLoading = ref(true);
 
@@ -110,7 +112,6 @@
             openNotification('Failed to update task.');
         }
     };
-
 
     // Mark the completion status of a task
     const toggleComplete = async (task) => {
