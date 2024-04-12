@@ -52,12 +52,31 @@ npm run dev
 cp .env.example .env
 ```
 
+### Generate application encryption key
+
+```bash
+php artisan key:generate
+```
+
 ### Database
 
 Give the database name in the .env then migrate the database
 
 ```bash
 php artisan migrate
+```
+
+### Define the API URL
+
+If you are using a virtual host by Laragon do this change in .env
+
+```bash
+APP_URL=https://trail_task.test
+```
+OR, if you served by artisan command do this change in .env
+
+```bash
+http://127.0.0.1:8000
 ```
 
 ### Serve the Application
